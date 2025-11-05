@@ -1,56 +1,92 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-  Request,
-  Query,
-} from '@nestjs/common';
-import { TasksService } from './tasks.service';
+import { Router, Request, Response, NextFunction } from 'express';
+import { tasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { jwtAuthMiddleware } from '../middleware/jwt-auth.middleware';
+import { validationMiddleware } from '../middleware/validation.middleware';
 import { TaskStatus } from './entities/task.entity';
 
-@Controller('tasks')
-@UseGuards(JwtAuthGuard)
-export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+const router = Router();
 
-  @Post()
-  create(@Body() createTaskDto: CreateTaskDto, @Request() req) {
-    return this.tasksService.create(createTaskDto, req.user.userId);
-  }
+// Apply JWT authentication to all routes
+router.use(jwtAuthMiddleware);
 
-  @Get()
-  findAll(
-    @Request() req,
-    @Query('status') status?: TaskStatus,
-    @Query('sortBy') sortBy?: string,
-    @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
-  ) {
-    return this.tasksService.findAll(req.user.userId, status, sortBy, sortOrder);
+// POST /tasks - Create a new task
+router.post(
+  '/',
+  validationMiddleware(CreateTaskDto),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const task = await tasksService.create(req.body, req.user!.userId);
+      res.status(201).json(task);
+    } catch (error) {
+      next(error);
+    }
   }
+);
 
-  @Get(':id')
-  findOne(@Param('id') id: string, @Request() req) {
-    return this.tasksService.findOne(+id, req.user.userId);
-  }
+// GET /tasks - Get all tasks with optional filtering and sorting
+router.get(
+  '/',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const status = req.query.status as TaskStatus | undefined;
+      const sortBy = req.query.sortBy as string | undefined;
+      const sortOrder = req.query.sortOrder as 'ASC' | 'DESC' | undefined;
 
-  @Put(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateTaskDto: UpdateTaskDto,
-    @Request() req,
-  ) {
-    return this.tasksService.update(+id, updateTaskDto, req.user.userId);
+      const tasks = await tasksService.findAll(
+        req.user!.userId,
+        status,
+        sortBy,
+        sortOrder
+      );
+      res.json(tasks);
+    } catch (error) {
+      next(error);
+    }
   }
+);
 
-  @Delete(':id')
-  remove(@Param('id') id: string, @Request() req) {
-    return this.tasksService.remove(+id, req.user.userId);
+// GET /tasks/:id - Get a single task
+router.get(
+  '/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const task = await tasksService.findOne(id, req.user!.userId);
+      res.json(task);
+    } catch (error) {
+      next(error);
+    }
   }
-}
+);
+
+// PUT /tasks/:id - Update a task
+router.put(
+  '/:id',
+  validationMiddleware(UpdateTaskDto),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const task = await tasksService.update(id, req.body, req.user!.userId);
+      res.json(task);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /tasks/:id - Delete a task
+router.delete(
+  '/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      await tasksService.remove(id, req.user!.userId);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export default router;

@@ -1,32 +1,22 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  BadRequestException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../users/users.service';
+import * as jwt from 'jsonwebtoken';
+import { usersService } from '../users/users.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { HttpException } from '../middleware/validation.middleware';
 
-@Injectable()
 export class AuthService {
-  constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
-    private configService: ConfigService,
-  ) {}
+  private usersService = usersService;
 
   async register(registerDto: RegisterDto) {
     const { email, password, confirmPassword } = registerDto;
 
     if (password !== confirmPassword) {
-      throw new BadRequestException('Passwords do not match');
+      throw new HttpException(400, 'Passwords do not match');
     }
 
     const user = await this.usersService.create(email, password);
 
     const payload = { sub: user.id, email: user.email };
-    const accessToken = this.jwtService.sign(payload);
+    const accessToken = this.signToken(payload);
 
     return {
       accessToken,
@@ -42,7 +32,7 @@ export class AuthService {
 
     const user = await this.usersService.findByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new HttpException(401, 'Invalid credentials');
     }
 
     const isPasswordValid = await this.usersService.validatePassword(
@@ -50,15 +40,13 @@ export class AuthService {
       user.password,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new HttpException(401, 'Invalid credentials');
     }
 
     const payload = { sub: user.id, email: user.email };
-    const expiresIn = rememberMe ? '30d' : this.configService.get('JWT_EXPIRES_IN');
-    
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn,
-    });
+    const expiresIn = rememberMe ? '30d' : (process.env.JWT_EXPIRES_IN || '7d');
+
+    const accessToken = this.signToken(payload, expiresIn);
 
     return {
       accessToken,
@@ -72,4 +60,18 @@ export class AuthService {
   async validateUser(userId: number) {
     return this.usersService.findById(userId);
   }
+
+  private signToken(payload: any, expiresIn?: string): string {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is not defined');
+    }
+
+    return jwt.sign(payload, jwtSecret, {
+      expiresIn: expiresIn || process.env.JWT_EXPIRES_IN || '7d',
+    });
+  }
 }
+
+// Export singleton instance
+export const authService = new AuthService();

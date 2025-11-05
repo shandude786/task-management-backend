@@ -30,7 +30,9 @@ export class User {
   @OneToMany(() => Task, (task) => task.user)
   tasks: Task[];
 
-  constructor(partial: Partial<User>) {
-    Object.assign(this, partial);
+  constructor(partial?: Partial<User>) {
+    if (partial) {
+      Object.assign(this, partial);
+    }
   }
 }

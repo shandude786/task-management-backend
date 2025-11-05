@@ -1,34 +1,25 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
+import 'reflect-metadata';
+import { createApp } from './app';
+import { initializeDatabase } from './config/database';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  try {
+    // Initialize database connection
+    await initializeDatabase();
+    console.log('Database connected successfully');
 
-  // Enable CORS for production
-  app.enableCors({
-    origin: [
-      'http://localhost:3001',
-      'https://your-app.vercel.app', // Update this after deploying frontend
-      /\.vercel\.app$/, // Allow all Vercel preview deployments
-    ],
-    credentials: true,
-  });
+    // Create Express app
+    const app = await createApp();
 
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
-
-  const port = process.env.PORT || 3000;
-  await app.listen(port, '0.0.0.0'); // Important: listen on 0.0.0.0
-  console.log(`Application is running on: http://localhost:${port}`);
+    // Start server
+    const port = parseInt(process.env.PORT || '3000', 10);
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Application is running on: http://localhost:${port}`);
+    });
+  } catch (error) {
+    console.error('Failed to start application:', error);
+    process.exit(1);
+  }
 }
+
 bootstrap();

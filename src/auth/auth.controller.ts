@@ -1,19 +1,36 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { AuthService } from './auth.service';
+import { Router, Request, Response, NextFunction } from 'express';
+import { authService } from './auth.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { validationMiddleware } from '../middleware/validation.middleware';
 
-@Controller('auth')
-export class AuthController {
-  constructor(private authService: AuthService) {}
+const router = Router();
 
-  @Post('register')
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+// POST /auth/register
+router.post(
+  '/register',
+  validationMiddleware(RegisterDto),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await authService.register(req.body);
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
+);
 
-  @Post('login')
-  @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+// POST /auth/login
+router.post(
+  '/login',
+  validationMiddleware(LoginDto),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await authService.login(req.body);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
   }
-}
+);
+
+export default router;

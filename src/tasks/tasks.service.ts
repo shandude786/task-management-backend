@@ -1,19 +1,15 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Task, TaskStatus } from './entities/task.entity';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
+import { getRepository } from '../config/database';
+import { HttpException } from '../middleware/validation.middleware';
 
-@Injectable()
 export class TasksService {
-  constructor(
-    @InjectRepository(Task)
-    private tasksRepository: Repository<Task>,
-  ) {}
+  private tasksRepository: Repository<Task>;
+
+  constructor() {
+    this.tasksRepository = getRepository(Task);
+  }
 
   async create(createTaskDto: CreateTaskDto, userId: number): Promise<Task> {
     const task = this.tasksRepository.create({
@@ -58,7 +54,7 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Task not found');
+      throw new HttpException(404, 'Task not found');
     }
 
     return task;
@@ -72,7 +68,7 @@ export class TasksService {
     const task = await this.findOne(id, userId);
 
     if (task.userId !== userId) {
-      throw new ForbiddenException('You can only update your own tasks');
+      throw new HttpException(403, 'You can only update your own tasks');
     }
 
     Object.assign(task, updateTaskDto);
@@ -83,9 +79,12 @@ export class TasksService {
     const task = await this.findOne(id, userId);
 
     if (task.userId !== userId) {
-      throw new ForbiddenException('You can only delete your own tasks');
+      throw new HttpException(403, 'You can only delete your own tasks');
     }
 
     await this.tasksRepository.remove(task);
   }
 }
+
+// Export singleton instance
+export const tasksService = new TasksService();
